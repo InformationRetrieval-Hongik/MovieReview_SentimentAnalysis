@@ -148,9 +148,6 @@ if __name__ == "__main__":
 
     trainDocs = loadDocs("./trainDocs.pkl")
     print("train Docs list length :", len(trainDocs))
-    print("print example of train Docs list :")
-    for idx in range(5):
-        print(trainDocs[idx])
 
     # divide by input x and label y
     train_x = []
@@ -158,35 +155,55 @@ if __name__ == "__main__":
     for x, y in trainDocs:
         train_x.append(x)
         train_y.append(y)
-    print("print example of train x, y :")
-    for idx in range(5):
-        print(train_x[idx], ",", train_y[idx])
 
     maxLen = len(max(train_x, key=len))
     lookupTable = loadTopNindex("./top_10000_index.json")
     train_x = encodeToInt(train_x, lookupTable, maxLen)  # get numpy array that converted from morpheme to interger(lookup table index value)
     train_y = np.array(train_y)
-    for idx in range(5):
-        print(train_x[idx])
+
+    # ==================================================================================================
+    # ==== process that encode test data[ratings_test.txt] to integer data type(lookup table index) ====
+    # ==================================================================================================
+
+    testDocs = loadDocs("./testDocs.pkl")
+    print("test Docs list length :", len(testDocs))
+
+    # divide by input x and label y
+    test_x = []
+    test_y = []
+    for x, y in testDocs:
+        test_x.append(x)
+        test_y.append(y)
+
+    maxLen = len(max(test_x, key=len))
+    lookupTable = loadTopNindex("./top_10000_index.json")
+    test_x = encodeToInt(test_x, lookupTable, maxLen)  # get numpy array that converted from morpheme to interger(lookup table index value)
+    test_y = np.array(test_y)
 
     # ==================================================================================================
     # ========================= generate simple test model and test data set. ==========================
     # ==================================================================================================
-    from keras.layers import Embedding, Dense, LSTM
+    from keras.layers import Embedding, Dense, LSTM, Flatten
     from keras.models import Sequential
     from keras.models import load_model
     from keras.callbacks import EarlyStopping, ModelCheckpoint
 
     vocab_size = len(lookupTable.keys())
     embedding_dim = 100
+    print(train_x.shape)
 
     model = Sequential()
-    model.add(Embedding(vocab_size, embedding_dim))  # 10002개중에 102번째 워드벡터
-    model.add(LSTM(128))
+    model.add(Embedding(vocab_size, embedding_dim, input_dim=1))
+    model.add(Flatten())
+    model.add(Dense(64, activation="relu"))
+    model.add(Dense(64, activation="relu"))
     model.add(Dense(1, activation="sigmoid"))
 
     earlyStop = EarlyStopping(monitor="val_loss", mode="min", verbose=1, patience=4)
-    modelCheck = ModelCheckpoint("best_model.h5", monitor="val_acc", mode="max", verbose=1, save_best_only=True)
+    modelCheck = ModelCheckpoint("dnn_best_model.h5", monitor="val_acc", mode="max", verbose=1, save_best_only=True)
 
     model.compile(optimizer="rmsprop", loss="binary_crossentropy", metrics=["acc"])
     history = model.fit(train_x, train_y, epochs=15, callbacks=[earlyStop, modelCheck], batch_size=60, validation_split=0.2)
+
+    loaded_model = load_model("dnn_best_model.h5")
+    print("\ntest accuracy : %.4f" % (loaded_model.evaluate(test_x, test_y)[1]))
